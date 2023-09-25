@@ -27,16 +27,35 @@
       .r{border-radius:0.3em;padding:2px;margin:6px 2px;}
       .pick-variant{margin-bottom:16px;}
       .date_pick{display:inline-block;width: 33%;}
+      #drop-area {
+        border: 2px dashed #ccc;
+        border-radius: 20px;
+        width: 480px;
+        margin: auto;
+        padding: 20px;
+      }
+      #drop-area.highlight {
+        border-color: #1fa3ec;
+      }
     </style>
     <script
       type="module"
-      src="https://unpkg.com/tasmota-esp-web-tools@8.1.2/dist/web/install-button.js?module"
+      src="https://unpkg.com/tasmota-esp-web-tools@8.1.3/dist/web/install-button.js?module"
     ></script>
+    <!-- <script type="module">import * as Module from "./js/tasmota_gh_helper.js"</script> -->
     <script>
 
         var releases = null;
         var date_filter = null;
         var build_filter = ["d","r"];
+        var local_file = null
+        var virtual_manifest = {"name": "","version": "","new_install_prompt_erase": true,"builds": [
+          { "chipFamily": "ESP32","parts": [{ "path": "", "offset": 0 }]},
+          { "chipFamily": "ESP32-C3","parts": [{ "path": "", "offset": 0 }]},
+          { "chipFamily": "ESP32-S2","parts": [{ "path": "", "offset": 0 }]},
+          { "chipFamily": "ESP32-S3","parts": [{ "path": "", "offset": 0 }]},
+          { "chipFamily": "ESP8266","parts": [{ "path": "", "offset": 0 }]}
+        ]};
 
 
         function DateIsNotSelected(date){
@@ -277,6 +296,7 @@
             fetch('https://github.com/tasmota/install/releases/download/'+ tag + '/manifests_release.json')
             .then(response => response.json())
             .then(data => makeVariantSelector(data));
+            getFirmwareVersion(tag);
         }
 
         function makeVariantSelector(data){
@@ -295,10 +315,18 @@
                 og.label = opt_group;
                 sel.appendChild(og);
                 console.log(opt_group,data[opt_group]);
+                let firmware_label = document.querySelector("#firmware-version");
                 for (fw of data[opt_group]){
                     // console.log(data[opt_group][fw]);
                     var opt=document.createElement('option');
                     opt.label = fw['name'];
+                    let version = fw['version'];
+                    if(version == undefined){
+                      //firmware_label.innerHTML = "&nbsp;";
+                    }
+                    else{
+                      firmware_label.innerText = version;
+                    }
                     opt.value = fw['path'];
                     opt.title = "Supported chipfamilies:\n"
                     for (chipFamily of fw['chipFamilies']){
@@ -311,7 +339,80 @@
             return true;
         }
 
+        function getFirmwareVersion(tag){
+            let commit = tag.split(".")[2];
+            console.log("Commit:____________",commit);
+            fetch("https://raw.githubusercontent.com/arendst/Tasmota/"+commit+"/tasmota/include/tasmota_version.h").then(x=>x.text()).then(t=>printFirmwareVersion(t))
+        }
+
+        function printFirmwareVersion(text_data){
+            for(line of text_data.split("\n")){
+                if(line.includes("const uint32_t VERSION =")){
+                    console.log("Line:____________",line);
+                    let fw_name = line.split("//")[1];
+                    let firmware_label = document.querySelector("#firmware-version");
+                    firmware_label.innerHTML = fw_name.trim();
+                }
+            }
+        }
+
+        function openFileDialog(){
+          let input = document.createElement('input');
+          input.type = 'file';
+          input.onchange = _ => {
+                    handleFiles(input.files);
+                };
+          input.click();
+        }
+
+        function preventDefaults (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+
+        function highlight(e) {
+          dropArea.classList.add('highlight');
+        }
+
+        function unhighlight(e) {
+          dropArea.classList.remove('active');
+        }
+
+        function handleDrop(e) {
+          var dt = e.dataTransfer;
+          var files = dt.files;
+          handleFiles(files);
+        }
+
+        function handleFiles(files) {
+          files = [...files];
+          console.log(files);
+          document.getElementById("URL_based_input").style.display = "none";
+          document.getElementById("file_upload_infotext").innerHTML = "You can flash your provided factory firmware at offset 0 by clicking the CONNECT button above.";
+          document.getElementById("dropped_firmware").innerText = files[0].name;
+          const button = document.querySelector("esp-web-install-button");
+          virtual_manifest.name = files[0].name;
+          button.manifest = JSON.stringify(virtual_manifest);
+          button.firmwareFile = files[0];
+        }
+
+        function prepareDropZone(){
+          ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                          dropArea.addEventListener(eventName, preventDefaults, false);
+                          document.body.addEventListener(eventName, preventDefaults, false);
+                        });
+          ['dragenter', 'dragover'].forEach(eventName => {
+                          dropArea.addEventListener(eventName, highlight, false);
+                        });
+          ['dragleave', 'drop'].forEach(eventName => {
+                          dropArea.addEventListener(eventName, unhighlight, false);
+                        });
+          dropArea.addEventListener('drop', handleDrop, false);
+        }
+
         window.addEventListener("load", function(event) {
+            window.dropArea = document.getElementById("drop-area");
+            prepareDropZone();
             getLatestTag();
             try{
                 const button = document.querySelector("esp-web-install-button");
@@ -337,7 +438,8 @@
                 console.log(e);
             }
         },{ once: true });
-        </script>
+
+  </script>
   </head>
   <body>
     <div style='display:inline-block;color:#eaeaea;min-width:340px;'>
@@ -352,29 +454,40 @@
         </ol>
         </br>
       </br>
-      <select id="pick-variant-selector"></select>
-      </br></br>
-      <select id="pick-release-selector"></select>
-      </br></br>
-      <p class = "needs_cors">Filter by date:</p>
-      <span><select class = "date_pick needs_cors" id="pick-year-selector"></select><select class = "date_pick needs_cors" id="pick-month-selector"></select><select class = "date_pick needs_cors" id="pick-day-selector"></select></span>
-      <p>
-      <p class = "needs_cors"><br>Filter by type:<br>
-      <input type="radio" name="build_type" value="r" id="check1" class="build_type_select">
-      <label for="check1">Release</label>
-      <input type="radio" name="build_type" value="d" id="check2" class="build_type_select">
-      <label for="check2">Development</label>
-      <input type="radio" name="build_type" value="a" id="check3" class="build_type_select" checked>
-      <label for="check3">All</label></p>
-        </br>
-        <esp-web-install-button id="inst" style='text-align:center'>
-          <i slot="unsupported">
-            Your browser does not support Web Serial.</br>Open this page in Google Chrome or</br>Microsoft Edge instead
-            <span class="not-supported-i hidden">(but not on your iOS device)</span>.
-          </i>
-        </esp-web-install-button>
+      <div id="URL_based_input" class="collapsible">
+        <select id="pick-variant-selector"></select>
+        <p id="firmware-version"></p>
+        <select id="pick-release-selector"></select>
+        </br></br>
+        <p class = "needs_cors">Filter by date:</p>
+        <span><select class = "date_pick needs_cors" id="pick-year-selector"></select><select class = "date_pick needs_cors" id="pick-month-selector"></select><select class = "date_pick needs_cors" id="pick-day-selector"></select></span>
+        <p>
+        <p class = "needs_cors"><br>Filter by type:<br>
+        <input type="radio" name="build_type" value="r" id="check1" class="build_type_select">
+        <label for="check1">Release</label>
+        <input type="radio" name="build_type" value="d" id="check2" class="build_type_select">
+        <label for="check2">Development</label>
+        <input type="radio" name="build_type" value="a" id="check3" class="build_type_select" checked>
+        <label for="check3">All</label></p>
+      </div>
+      </br>
+      <esp-web-install-button id="inst" style='text-align:center'>
+        <i slot="unsupported">
+          Your browser does not support Web Serial.</br>Open this page in Google Chrome or</br>Microsoft Edge instead
+          <span class="not-supported-i hidden">(but not on your iOS device)</span>.
+        </i>
+      </esp-web-install-button>
      </p>
     </div>
+    <div id="drop-area">
+      <form class="my-form">
+      <p id="file_upload_infotext">Upload factory firmware with the file dialog or by dragging and dropping onto the dashed region</p>
+      <!-- <input type="file" id="fileElem" accept=".bin" onchange="handleFiles(this.files)" class="button"> -->
+      <p id="dropped_firmware"></p>
+      </form>
+    </div>
+    <h1>&#8593;</h1>
+    <button id="fileElem" accept=".bin" onclick="openFileDialog()">Upload factory.bin</button>
     <div style='text-align:right;font-size:11px;'>
       <hr/>
       <a href="https://esphome.github.io/esp-web-tools/" target='_blank' style='color:#aaa;'>Tasmota Installer powered by ESP Web Tools</a>
