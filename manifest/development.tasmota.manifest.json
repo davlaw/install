@@ -12,10 +12,24 @@
       ]
     },
     {
+      "chipFamily": "ESP32-C2",
+      "improv": true,
+      "parts": [
+        { "path": "../firmware/development/tasmota32c2-arduino30.factory.bin", "offset": 0 }
+      ]
+    },
+    {
       "chipFamily": "ESP32-C3",
       "improv": true,
       "parts": [
         { "path": "../firmware/development/tasmota32c3.factory.bin", "offset": 0 }
+      ]
+    },
+    {
+      "chipFamily": "ESP32-C6",
+      "improv": true,
+      "parts": [
+        { "path": "../firmware/developmemt/tasmota32c6cdc-arduino30.factory.bin", "offset": 0 }
       ]
     },
     {
